@@ -1,0 +1,71 @@
+# System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# SSH Keys and Credentials
+*.pem
+id_rsa
+id_rsa.pub
+*.key
+*.cert
+*.crt
+
+# Log Files
+*.log
+logs/
+log/
+*.out
+
+# Temporary Files
+*.swp
+*.swo
+*~
+.temp/
+tmp/
+
+# Backup Files
+*.bak
+*.backup
+*.orig
+
+# Package Management
+*.rpm
+*.deb
+*.pkg
+
+# Sensitive Configuration
+*.env
+config/secrets.yml
+config/database.yml
+
+# Script Artifacts
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Backup and Rotation Directories
+backup/
+backups/
+*.tar
+*.gz
+*.zip
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Performance and Monitoring Data
+*.rrd
+*.db
+monitoring/data/
+
+# Build and Compiled Outputs
+build/
+dist/
+*.o
+*.a
+*.so
