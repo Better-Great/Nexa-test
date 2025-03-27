@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+
+# Pre-commit validation for shell and Python scripts
+
+set -o errexit
+set -o pipefail
+
+# Logging and color helpers
+log_error() { 
+    printf '\033[0;31m[ERROR]\033[0m %s\n' "$*" >&2 
+}
+
+log_warn() { 
+    printf '\033[0;33m[WARN]\033[0m %s\n' "$*" >&2 
+}
+
+log_success() { 
+    printf '\033[0;32m[OK]\033[0m %s\n' "$*" 
+}
+
+# Dependencies check
+check_dependencies() {
+    local missing_deps=()
+    
+    # Check for required tools
+    for tool in shellcheck pylint; do
+        if ! command -v "$tool" &> /dev/null; then
+            missing_deps+=("$tool")
+        fi
+    done
+
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_warn "Missing dependencies: ${missing_deps[*]}"
+        log_warn "Install with: pip install pylint && brew install shellcheck"
+        return 1
+    fi
+
+    return 0
+}
+
+# Validate shell scripts
+validate_shell_script() {
+    local script="$1"
+    local issues=0
+
+    # Basic syntax check
+    if ! bash -n "$script"; then
+        log_error "Syntax error in $script"
+        issues=$((issues + 1))
+    fi
+
+    # Shellcheck analysis
+    if ! shellcheck -x "$script"; then
+        log_error "Shellcheck found issues in $script"
+        issues=$((issues + 1))
+    fi
+
+    return $issues
+}
+
+# Validate Python scripts
+validate_python_script() {
+    local script="$1"
+    local issues=0
+
+    # Syntax check
+    if ! python3 -m py_compile "$script" &> /dev/null; then
+        log_error "Syntax error in $script"
+        issues=$((issues + 1))
+    fi
+
+    # Pylint check (customize rules as needed)
+    if ! pylint --disable=C0111 --errors-only "$script"; then
+        log_error "Pylint found critical issues in $script"
+        issues=$((issues + 1))
+    fi
+
+    return $issues
+}
+
+# Main validation logic
+main() {
+    if ! check_dependencies; then
+        exit 1
+    fi
+
+    local total_issues=0
+    local staged_scripts=()
+
+    # Collect staged shell and Python scripts
+    while IFS= read -r file; do
+        if [[ "$file" =~ \.(sh|py)$ ]]; then
+            staged_scripts+=("$file")
+        fi
+    done < <(git diff --cached --name-only --diff-filter=ACM)
+
+    # Validate each script
+    for script in "${staged_scripts[@]}"; do
+        case "$script" in 
+            *.sh)
+                if ! validate_shell_script "$script"; then
+                    total_issues=$((total_issues + 1))
+                fi
+                ;;
+            *.py)
+                if ! validate_python_script "$script"; then
+                    total_issues=$((total_issues + 1))
+                fi
+                ;;
+        esac
+    done
+
+    # Block commit if issues found
+    if [ $total_issues -gt 0 ]; then
+        log_error "Validation failed. Fix script issues before committing."
+        exit 1
+    fi
+
+    log_success "All scripts passed validation"
+    exit 0
+}
+
+main
