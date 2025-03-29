@@ -32,6 +32,7 @@ pip install pylint
 
 # Install shellcheck
 sudo apt install shellcheck
+sudo apt install pylint
 ```
 ### Activation
 To enable the pre-commit hook:
