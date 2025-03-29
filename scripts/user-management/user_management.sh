@@ -132,6 +132,9 @@ create_single_user() {
         echo "Granted sudo access to $username" | tee -a "$log_file"
     fi
     
+    # Set password for the user
+    set_user_password "$username"
+    
     # Log the action
     echo "Created user $username with group $group" | tee -a "$log_file"
 }
@@ -187,6 +190,9 @@ create_multiple_users() {
             sudo usermod -aG sudo "$username"
             echo "Granted sudo access to $username" | tee -a "$log_file"
         fi
+        
+        # Set password for the user
+        set_user_password "$username"
         
         # Log user creation
         echo "Created user $username in group $group_name" | tee -a "$log_file"
@@ -268,6 +274,77 @@ delete_user() {
     esac
 }
 
+# Function to set password policy
+set_password_policy() {
+    echo "Setting System-Wide Password Policy..."
+    
+    # Make backup of login.defs
+    sudo cp /etc/login.defs /etc/login.defs.backup
+    echo "Backed up /etc/login.defs" | tee -a "$log_file"
+    
+    # Configure password aging policies in login.defs
+    sudo sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 90/' /etc/login.defs
+    sudo sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS 1/' /etc/login.defs
+    sudo sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE 7/' /etc/login.defs
+    echo "Set password aging parameters in /etc/login.defs" | tee -a "$log_file"
+
+    # Check if libpam-pwquality is installed
+    if ! dpkg -l | grep -q libpam-pwquality; then
+        echo "Installing libpam-pwquality package..."
+        sudo apt-get update
+        sudo apt-get install -y libpam-pwquality
+        echo "Installed libpam-pwquality" | tee -a "$log_file"
+    fi
+    
+    # Make backup of common-password
+    sudo cp /etc/pam.d/common-password /etc/pam.d/common-password.backup
+    
+    # Update PAM configuration for password quality
+    PAM_PWQUALITY_LINE="password requisite pam_pwquality.so retry=3 minlen=12 difok=3 ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1 reject_username enforce_for_root"
+    
+    # Check if the line already exists and replace or add it
+    if grep -q "pam_pwquality.so" /etc/pam.d/common-password; then
+        sudo sed -i "/pam_pwquality.so/c\\$PAM_PWQUALITY_LINE" /etc/pam.d/common-password
+    else
+        # Find pam_unix.so line and add pwquality before it
+        sudo sed -i "/pam_unix.so/i\\$PAM_PWQUALITY_LINE" /etc/pam.d/common-password
+    fi
+    
+    echo "Updated password quality requirements in PAM" | tee -a "$log_file"
+    
+    # Explain the policy that was set
+    echo "Password policy has been configured with the following requirements:" | tee -a "$log_file"
+    echo "- Minimum password length: 12 characters" | tee -a "$log_file"
+    echo "- Requires at least 1 uppercase letter" | tee -a "$log_file"
+    echo "- Requires at least 1 lowercase letter" | tee -a "$log_file"
+    echo "- Requires at least 1 digit" | tee -a "$log_file"
+    echo "- Requires at least 1 special character" | tee -a "$log_file"
+    echo "- Cannot contain the username" | tee -a "$log_file"
+    echo "- Password expires after 90 days" | tee -a "$log_file"
+    echo "- Password change allowed after 1 day" | tee -a "$log_file"
+    echo "- Warning 7 days before password expiration" | tee -a "$log_file"
+}
+
+# Function to set password for a user
+set_user_password() {
+    local username="$1"
+    
+    # Check if user exists
+    if ! id "$username" &>/dev/null; then
+        echo "User $username does not exist." | tee -a "$log_file"
+        return 1
+    fi
+    
+    # Prompt for password
+    echo "Setting password for $username"
+    echo "Note: Password must meet the system policy requirements."
+    sudo passwd "$username"
+    
+    # Set password expiration for the user
+    sudo chage -M 90 -m 1 -W 7 "$username"
+    echo "Password expiration policy applied to $username" | tee -a "$log_file"
+}
+
 # Main script logic
 main() {
     # Check root permissions
@@ -281,10 +358,11 @@ main() {
     echo "1. Create a single user"
     echo "2. Create multiple users"
     echo "3. Delete user(s)"
-    echo "4. Exit"
+    echo "4. Set system-wide password policy"
+    echo "5. Exit"
     
     # Read user choice
-    read -r -p "Enter your choice (1-4): " choice
+    read -r -p "Enter your choice (1-5): " choice
     
     # Determine action based on choice
     case "$choice" in 
@@ -298,11 +376,14 @@ main() {
             delete_user
             ;;
         4)
+            set_password_policy
+            ;;
+        5)
             echo "Exiting user management script."
             exit 0
             ;;
         *)
-            echo "Invalid choice. Please select 1-4." | tee -a "$log_file"
+            echo "Invalid choice. Please select 1-5." | tee -a "$log_file"
             exit 1
             ;;
     esac
