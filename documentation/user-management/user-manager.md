@@ -39,8 +39,8 @@ This is much faster than typing multiple commands manually!
 ### SSH Key Management
 The script makes it easy to add SSH keys by:
 
-1. Creating the .ssh directory in the user's home folder
-2. Adding the key to the authorized_keys file
+1. Creating the `.ssh` directory in the user's home folder
+2. Adding the key to the `authorized_keys` file
 3. Setting the correct permissions (this is important for SSH to work properly)
 
 ### Password Policies
